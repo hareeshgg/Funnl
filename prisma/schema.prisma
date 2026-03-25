@@ -1,0 +1,26 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Lead {
+  id                    String   @id @default(uuid())
+  platform              String   // Enum: "instagram" | "threads"
+  handle                String
+  conversation_history  Json     @default("[]")
+  intent                String?  // Enum: "buying" | "browsing" | "curious"
+  sentiment             String?  // Enum: "positive" | "neutral" | "negative"
+  lead_stage            String   @default("new") // Enum: "new" | "qualified" | "hot"
+  budget                String?
+  product_interest      String?
+  phone                 String?
+  email                 String?
+  last_interaction      DateTime @default(now())
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  @@index([handle, platform])
+}

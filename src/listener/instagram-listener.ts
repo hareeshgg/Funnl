@@ -10,7 +10,43 @@ export class InstagramListener {
    * Handle incoming DM message
    */
   static async handleDM(req: Request, res: Response): Promise<void> {
+    logger.info(`Received DM request. Headers: ${JSON.stringify(req.headers)}`);
+    logger.info(`Received DM request. Body: ${JSON.stringify(req.body)}`);
+    
+    if (!req.body || Object.keys(req.body).length === 0) {
+      logger.error("Received DM webhook with empty body. Ensure Postman headers (Content-Type: application/json) are set.");
+      res.status(400).send("EMPTY_BODY");
+      return;
+    }
+    // Check for Meta's official nested payload structure
+    if (req.body.object === "instagram" && Array.isArray(req.body.entry)) {
+      for (const entry of req.body.entry) {
+        if (!Array.isArray(entry.messaging)) continue;
+        
+        for (const msgEvent of entry.messaging) {
+          const mSenderId = msgEvent.sender?.id;
+          const mText = msgEvent.message?.text;
+          
+          if (mSenderId && mText) {
+            try {
+              MessageProcessor.process(mSenderId, mText, "instagram");
+            } catch (error: any) {
+              logger.error(`Failed to handle Instagram DM for ${mSenderId}`, { error: error.message });
+            }
+          }
+        }
+      }
+      res.status(200).send("EVENT_RECEIVED");
+      return;
+    }
+
+    // Fallback: Our flat Postman structure
     const { senderId, message, platform = "instagram" } = req.body;
+    if (!senderId || !message) {
+      logger.warn("Invalid flat payload received", { body: req.body });
+      res.status(400).send("INVALID_PAYLOAD");
+      return;
+    }
 
     // Acknowledgement for webhook
     res.status(200).send("EVENT_RECEIVED");

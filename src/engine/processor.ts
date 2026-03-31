@@ -3,6 +3,8 @@ import { HybridEngine } from "../engine/hybrid-engine";
 import { Humanizer } from "../humanizer/humanizer-logic";
 import { LeadExtractor } from "../leads/extractor";
 import { SalesCommandClient } from "../integration/sales-command-client";
+import { InstagramClient } from "../integration/instagram-client";
+import { ThreadsClient } from "../integration/threads-client";
 import logger from "../logger/logger";
 
 /**
@@ -12,12 +14,23 @@ export class MessageProcessor {
   /**
    * Processes an incoming message and triggers appropriate responses and qualifications
    */
-  static async process(senderId: string, message: string, platform: string): Promise<void> {
-    logger.info(`Processing message from ${senderId} on ${platform}`, { message });
+  static async process(
+    senderId: string,
+    message: string,
+    platform: string,
+    platformTargetId?: string,
+  ): Promise<void> {
+    logger.info(`Processing message from ${senderId} on ${platform}`, {
+      message,
+      platformTargetId,
+    });
 
     try {
       // 1. Get or Create Lead
-      const lead = await ConversationManager.getLeadByHandle(senderId, platform);
+      const lead = await ConversationManager.getLeadByHandle(
+        senderId,
+        platform,
+      );
 
       // 2. Persistent Tracking
       await ConversationManager.addMessage(lead.id, "user", message);
@@ -31,23 +44,56 @@ export class MessageProcessor {
 
       // 5. Respond and Log
       await ConversationManager.addMessage(lead.id, "ai", replyText);
-      logger.info(`[${platform}] Reply sent to ${senderId}`, { reply: replyText });
+      logger.info(`[${platform}] Reply generated for ${senderId}`, {
+        reply: replyText,
+      });
+
+      if (platform === "instagram") {
+        await InstagramClient.sendTextMessage(senderId, replyText);
+      } else if (platform === "threads") {
+        if (platformTargetId) {
+          const threadSent = await ThreadsClient.replyToComment(
+            platformTargetId,
+            replyText,
+          );
+          if (!threadSent) {
+            logger.warn("Threads API reply failed; fallback may be required.", {
+              senderId,
+              commentId: platformTargetId,
+            });
+          }
+        } else {
+          logger.warn(
+            "No target ID provided for Threads reply. Skipping direct API reply.",
+            { senderId },
+          );
+        }
+      }
 
       // 6. Lead Data Extraction (Metadata & Stages)
       const transcript = await ConversationManager.getHistory(lead.id);
       const extractedMetadata = await LeadExtractor.extract(transcript);
-      
-      const updatedLead = await ConversationManager.updateMetadata(lead.id, extractedMetadata);
-      logger.debug(`Lead ${lead.id} metadata updated`, { status: updatedLead.lead_stage });
+
+      const updatedLead = await ConversationManager.updateMetadata(
+        lead.id,
+        extractedMetadata,
+      );
+      logger.debug(`Lead ${lead.id} metadata updated`, {
+        status: updatedLead.lead_stage,
+      });
 
       // 7. CRM Synchronization
-      if (updatedLead.lead_stage === "qualified" || updatedLead.lead_stage === "hot") {
+      if (
+        updatedLead.lead_stage === "qualified" ||
+        updatedLead.lead_stage === "hot"
+      ) {
         logger.info(`Syncing qualified lead to Sales Command`, { id: lead.id });
         await SalesCommandClient.syncLead(updatedLead);
       }
-
     } catch (error: any) {
-      logger.error(`Error processing message from ${senderId}`, { error: error.message });
+      logger.error(`Error processing message from ${senderId}`, {
+        error: error.message,
+      });
       // Basic retry mechanism would go here
     }
   }

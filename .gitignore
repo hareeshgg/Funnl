@@ -10,3 +10,7 @@ dist
 # Prisma generated 
 /generated/prisma
 prisma/migrations
+
+test
+
+.vscode

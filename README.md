@@ -44,20 +44,138 @@ Build a **Proof of Concept AI Agent** that operates on **Instagram (DMs)** and *
 - **`src/logger/`**: Structured Winston logging for conversation debugging and error tracking.
 - **`src/engine/processor.ts`**: Dedicated worker-ready processor logic that can easily be plugged into BullMQ/Redis for scaling beyond POC.
 
-## 🧪 Testing the POC
-To test the concurrency and flow without real Instagram webhooks, use the built-in test endpoint:
-```bash
-GET http://localhost:3000/test/concurrency
-```
-This will simulate 50 concurrent sessions and verify the processing pipeline.
 
-## 📊 Success Criteria Status
-- [x] Instagram DM auto-responder.
-- [x] Comment-to-DM automated funnel.
-- [x] Structured lead data capture (Prisma).
-- [x] Sales Command API sync logic.
-- [x] 50 Concurrent sessions test script.
-- [x] Humanizer module.
+## 📸 Instagram API Integration
+
+Follow these steps to properly set up and integrate the Instagram Messaging API with your backend:
+
+---
+
+### 1. Prerequisites (Environment Variables)
+
+Ensure your **`.env`** file contains the following variables:
+
+```env
+META_APP_ID=your_app_id
+META_APP_SECRET=your_app_secret
+INSTAGRAM_PAGE_ACCESS_TOKEN=your_extended_page_token
+INSTAGRAM_BUSINESS_ACCOUNT_ID=your_ig_business_id
+FACEBOOK_PAGE_ID=your_facebook_page_id
+WEBHOOK_VERIFY_TOKEN=your_custom_verify_token
+```
+
+- **META_APP_ID**: The unique ID of your Meta App.
+- **META_APP_SECRET**: The secret key for your Meta App.
+- **INSTAGRAM_PAGE_ACCESS_TOKEN**: A long-lived token representing the linked Facebook Page.
+- **INSTAGRAM_BUSINESS_ACCOUNT_ID**: The ID of the Instagram Business Account.
+- **FACEBOOK_PAGE_ID**: The ID of the Facebook Page linked to the Instagram account.
+- **WEBHOOK_VERIFY_TOKEN**: A custom string you define to verify webhook requests.
+
+---
+
+### 2. Create Meta App
+1. Go to the **Meta Developers Dashboard**.
+2. Click **Create App**.
+3. Select **Other** -> **Business** as the app type.
+4. Choose **Instagram Graph API** (and optionally Messenger) as the product.
+5. Complete the app creation without connecting any business initially.
+
+---
+
+### 3. Add Instagram Use Case
+1. Navigate to **Use Cases** in the left sidebar.
+2. Select **Instagram API** from the list.
+3. Click **Add** to include it in your app.
+
+---
+
+### 4. Configure Permissions & Features
+Navigate to **App Settings** -> **Permissions and Features**. Enable the following:
+
+**Mandatory:**
+- `instagram_basic`
+- `instagram_manage_comments`
+- `instagram_manage_messages`
+- `instagram_business_basic`
+
+**Optional (Recommended):**
+- `business_management`
+- `pages_show_list`
+- `pages_read_engagement`
+- `instagram_content_publish`
+- `human_agent`
+- `user_profile`
+
+---
+
+### 5. API Setup with Instagram Login
+1. Go to **Instagram** section in the sidebar -> **API Setup**.
+2. Click **Add Permissions** or **Configure**.
+3. Ensure the mandatory permissions listed above are successfully added.
+
+---
+
+### 6. Configure Webhooks
+1. Go to the **Webhooks** section.
+2. Select **Instagram** from the dropdown and click **Configure**.
+3. **Callback URL**: `https://your-domain.com/webhooks/instagram`
+4. **Verify Token**: Must match `WEBHOOK_VERIFY_TOKEN` in your `.env`.
+5. Click **Verify and Save**.
+6. **Subscribe** to `messages` and `comments` fields.
+
+---
+
+### 7. Generate Page Access Token (Graph API Explorer)
+1. Open the [Graph API Explorer](https://developers.facebook.com/tools/explorer/).
+2. Select your **Meta App**.
+3. In **User or Page**, select **Get Page Access Token**.
+4. Grant the required permissions (`pages_show_list`, `instagram_basic`, `instagram_manage_messages`, etc.).
+5. Copy the generated **Access Token**.
+6. run the query: `me/accounts?fields=access_token,name,id` to find the specific Page token.
+
+---
+
+### 8. Extend Page Access Token
+1. Open the [Access Token Debugger](https://developers.facebook.com/tools/debug/accesstoken/).
+2. Paste the token and click **Debug**.
+3. Scroll down and click **Extend Access Token**.
+4. Copy the new **long-lived** token (valid for ~60 days).
+
+---
+
+### 9. Configure Backend
+Update your **`.env`** with the gathered credentials:
+```env
+INSTAGRAM_PAGE_ACCESS_TOKEN=your_extended_token
+META_APP_ID=your_app_id
+META_APP_SECRET=your_app_secret
+INSTAGRAM_BUSINESS_ACCOUNT_ID=your_ig_business_id
+FACEBOOK_PAGE_ID=your_page_id
+WEBHOOK_VERIFY_TOKEN=your_verify_token
+```
+
+---
+
+### 10. Get App Credentials
+1. Go to **App Settings** -> **Basic**.
+2. Copy the **App ID** and **App Secret**.
+
+---
+
+### 11. Privacy Policy & App Publishing
+1. Create a public **Privacy Policy** URL (Google Docs works for development).
+2. Add the URL in **App Settings** -> **Basic**.
+3. Ensure a category and icon are selected.
+4. Toggle the app to **Live Mode** in the top bar.
+
+---
+
+⚠️ **Notes**
+- Page access tokens expire unless extended to "Never Expire" or refreshed periodically.
+- Ensure your endpoint is publicly reachable (use **ngrok** for local development).
+- Permissions requested in Step 7 must match the usage in the code.
+
+---
 
 ## 🧵 Threads API Integration Steps
 

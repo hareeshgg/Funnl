@@ -19,6 +19,7 @@ export class MessageProcessor {
     message: string,
     platform: string,
     platformTargetId?: string,
+    overrideReply?: string | null,
   ): Promise<void> {
     logger.info(`Processing message from ${senderId} on ${platform}`, {
       message,
@@ -40,56 +41,69 @@ export class MessageProcessor {
 
       // 4. Hybrid Engine Decision (Rules + LLM)
       const history = await ConversationManager.getHistory(lead.id);
-      const replyText = await HybridEngine.getResponse(history, message);
+      const replyText = overrideReply || (await HybridEngine.getResponse(history, message));
 
-      // 5. Respond and Log
-      await ConversationManager.addMessage(lead.id, "ai", replyText);
-      logger.info(`[${platform}] Reply generated for ${senderId}`, {
-        reply: replyText,
-      });
+      // --- ASYNC BACKGROUND PROCESSING FOR LONG DELAYS ---
+      // We don't await this so the webhook can process other incoming comments instantly
+      setImmediate(async () => {
+        try {
+          // Wait a randomized duration (1 to 60 mins) before actually replying
+          await Humanizer.longDelay();
 
-      if (platform === "instagram") {
-        await InstagramClient.sendTextMessage(senderId, replyText);
-      } else if (platform === "threads") {
-        if (platformTargetId) {
-          const threadSent = await ThreadsClient.replyToComment(
-            platformTargetId,
-            replyText,
-          );
-          if (!threadSent) {
-            logger.warn("Threads API reply failed; fallback may be required.", {
-              senderId,
-              commentId: platformTargetId,
-            });
+          // 5. Respond and Log
+          await ConversationManager.addMessage(lead.id, "ai", replyText);
+          logger.info(`[${platform}] Reply generated for ${senderId}`, {
+            reply: replyText,
+          });
+
+          if (platform === "instagram") {
+            await InstagramClient.sendTextMessage(senderId, replyText);
+          } else if (platform === "threads") {
+            if (platformTargetId) {
+              const threadSent = await ThreadsClient.replyToComment(
+                platformTargetId,
+                replyText,
+              );
+              if (!threadSent) {
+                logger.warn("Threads API reply failed; fallback may be required.", {
+                  senderId,
+                  commentId: platformTargetId,
+                });
+              }
+            } else {
+              logger.warn(
+                "No target ID provided for Threads reply. Skipping direct API reply.",
+                { senderId },
+              );
+            }
           }
-        } else {
-          logger.warn(
-            "No target ID provided for Threads reply. Skipping direct API reply.",
-            { senderId },
+
+          // 6. Lead Data Extraction (Metadata & Stages)
+          const transcript = await ConversationManager.getHistory(lead.id);
+          const extractedMetadata = await LeadExtractor.extract(transcript);
+
+          const updatedLead = await ConversationManager.updateMetadata(
+            lead.id,
+            extractedMetadata,
           );
+          logger.debug(`Lead ${lead.id} metadata updated`, {
+            status: updatedLead.lead_stage,
+          });
+
+          // 7. CRM Synchronization
+          if (
+            updatedLead.lead_stage === "qualified" ||
+            updatedLead.lead_stage === "hot"
+          ) {
+            logger.info(`Syncing qualified lead to Sales Command`, { id: lead.id });
+            await SalesCommandClient.syncLead(updatedLead);
+          }
+        } catch (bgError: any) {
+          logger.error(`Error in background processing for ${senderId}`, {
+            error: bgError.message,
+          });
         }
-      }
-
-      // 6. Lead Data Extraction (Metadata & Stages)
-      const transcript = await ConversationManager.getHistory(lead.id);
-      const extractedMetadata = await LeadExtractor.extract(transcript);
-
-      const updatedLead = await ConversationManager.updateMetadata(
-        lead.id,
-        extractedMetadata,
-      );
-      logger.debug(`Lead ${lead.id} metadata updated`, {
-        status: updatedLead.lead_stage,
       });
-
-      // 7. CRM Synchronization
-      if (
-        updatedLead.lead_stage === "qualified" ||
-        updatedLead.lead_stage === "hot"
-      ) {
-        logger.info(`Syncing qualified lead to Sales Command`, { id: lead.id });
-        await SalesCommandClient.syncLead(updatedLead);
-      }
     } catch (error: any) {
       logger.error(`Error processing message from ${senderId}`, {
         error: error.message,

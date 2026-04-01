@@ -1,13 +1,14 @@
-import express from "express";
 import dotenv from "dotenv";
+dotenv.config();
+console.log("Dotenv loaded at startup.");
+
+import express from "express";
 import { InstagramListener } from "./listener/instagram-listener";
 import { ThreadsListener } from "./listener/threads-listener";
 import { MessageProcessor } from "./engine/processor";
 import { Humanizer } from "./humanizer/humanizer-logic";
 import instagramOAuthRouter from "./integration/instagram-oauth";
 import logger from "./logger/logger";
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // --- Instagram OAuth Routes ---
+console.log("Mounting OAuth routes...");
 app.use("/auth/instagram", instagramOAuthRouter);
 
 // --- Core Webhook Routes ---
@@ -80,7 +82,12 @@ app.get("/webhooks/threads/mentions", threadsVerifyHandler);
 /**
  * Handle incoming Threads Mentions / Replies
  */
-app.post("/webhooks/threads", ThreadsListener.handleComment); // catches generic thread webhooks too
+// The root webhook often receives pings/notifications that aren't specific to our comment logic.
+// We'll acknowledge them with a 200 to silence the Bad Request noise in ngrok.
+app.post("/webhooks/threads", (req, res) => {
+  console.log("[THREADS] Root webhook ping received.");
+  res.status(200).send("OK");
+});
 app.post("/webhooks/threads/mentions", ThreadsListener.handleMention);
 app.post("/webhooks/threads/comments", ThreadsListener.handleComment);
 
@@ -132,7 +139,7 @@ app.use(
     res: express.Response,
     next: express.NextFunction,
   ) => {
-    console.error("Global error handler caught an exception", err);
+    console.error("Global express error handler caught an exception", err);
     logger.error("Unhandled express error", {
       error: err?.message || err,
       route: req.originalUrl,
@@ -140,6 +147,19 @@ app.use(
     res.status(500).json({ error: "Internal server error" });
   },
 );
+
+// Capture process-level crashes (unhandled rejections/exceptions)
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  logger.error("Unhandled Rejection", { reason, promise });
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception caught:", err);
+  logger.error("Uncaught Exception", { error: err.message, stack: err.stack });
+  // In production, you might want to gracefully exit here
+  // process.exit(1);
+});
 
 /**
  * Concurrency Test Mock
@@ -176,6 +196,12 @@ app.get("/test/concurrency", async (req, res) => {
   });
 });
 
+console.log(`Starting server on port ${PORT}...`);
 app.listen(PORT, () => {
   console.log(`AI Social Agent (Sales Command POC) running on port ${PORT}`);
+  
+  // Heartbeat to ensure the event loop never empties and process doesn't "clean exit" unexpectedly
+  setInterval(() => {
+    logger.debug("Server Heartbeat: Active on port " + PORT);
+  }, 10 * 60 * 1000); // Every 10 minutes
 });

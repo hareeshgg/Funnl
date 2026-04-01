@@ -15,6 +15,20 @@ export class Humanizer {
   }
 
   /**
+   * Extremely long randomized delay (1 to 60 minutes) to simulate a human stepping away
+   * or taking time to respond naturally.
+   */
+  static async longDelay(): Promise<void> {
+    const minMins = 1;
+    const maxMins = 60;
+    // randomInt doesn't include the max, so we add 1 to allow 60 mins
+    const delayMins = randomInt(minMins, maxMins + 1); 
+    const delayMs = delayMins * 60 * 1000;
+    console.log(`[Humanizer] Sleeping for ${delayMins} minutes before responding...`);
+    return new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  /**
    * Randomizes phrasing for common responses
    * @param phrases Array of alternative phrases
    */

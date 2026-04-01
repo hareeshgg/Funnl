@@ -4,7 +4,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+// Guard initialization to avoid crash on empty string
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 /**
  * Hybrid Intelligence System utilizing Rules + LLM
@@ -59,6 +60,9 @@ export class HybridEngine {
     ];
 
     try {
+      if (!openai) {
+        throw new Error("OpenAI client not initialized.");
+      }
       const response = await openai.chat.completions.create({
         model: "gpt-4-turbo-preview", // Or gpt-3.5-turbo for cost
         messages: messages,

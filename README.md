@@ -258,6 +258,65 @@ Follow these steps to properly set up and integrate the Threads API with your ba
 ---
 
 ⚠️ **Notes**
-- Ensure your backend endpoint is publicly accessible (use **ngrok** or **Cloudflare Tunnel** for local testing).
-- The **Verify Token** must exactly match between Meta and your `.env` file.
-- Access tokens generated via the generator are short-lived; implement long-lived token exchange for production.
+---
+
+## AI Chat Automation (Gemini API)
+
+Follow these steps to implement intelligent, context-aware replies for Threads comments using the Gemini API (free tier).
+
+### 1. Objective
+- Automatically generate replies to Threads comments using AI.
+- Responses must be **context-aware**, natural, and conversational.
+- Avoid generic replies (e.g., "Thank you for your input").
+- Prefer human-like responses (e.g., "Thanks man, I gave my all!", "Appreciate it!").
+
+### 2. Environment Variables
+Add the following variables in your `.env` file:
+```env
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-1.5-flash
+```
+
+### 3. Install Dependencies
+```bash
+npm install @google/generative-ai
+```
+
+### 4. AI Reply Generation Logic
+Located in `src/utils/gemini.ts`:
+```typescript
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+});
+
+export async function generateReply(threadText: string, commentText: string) {
+  try {
+    const prompt = `Post: "${threadText}" \n Comment: "${commentText}" \n ...`; // Logic details in file
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text().trim();
+  } catch (error) {
+    return "Thanks a lot! 🙌";
+  }
+}
+```
+
+### 5. Integration in Webhook Handler
+The `ThreadsListener` in `src/listener/threads-listener.ts` handles extraction and passes the content to the Gemini utility:
+```typescript
+const threadText = await ThreadsClient.getThreadContent(parentId);
+const aiReply = await generateReply(threadText, commentText);
+await ThreadsClient.replyToComment(commentId, aiReply);
+```
+
+### 6. Expected Behavior
+| Thread Post | Comment | AI Reply |
+|---|---|---|
+| I just made my first chatbot | Congratulations | Thanks man, I gave my all! |
+| I launched my app today | Woah 🔥 | Thank you!! 🔥 |
+| Just hit 1k users | Nice | Appreciate it! |
+
+---

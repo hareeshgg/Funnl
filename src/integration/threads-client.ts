@@ -44,10 +44,8 @@ export class ThreadsClient {
         return false;
       }
 
-      logger.debug(`Threads media container created: ${creationId}`);
-
-      // Optional short delay for processing (Meta recommends up to 30s, but for TEXT it's faster)
-      // await new Promise(resolve => setTimeout(resolve, 2000));
+      logger.debug(`Threads media container created: ${creationId}. Waiting for propagation...`);
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // --- Step 2: Publish the media container ---
       const publishUrl = `${THREADS_API_URL}/me/threads_publish`;
@@ -72,11 +70,47 @@ export class ThreadsClient {
       const errorData = error.response?.data?.error || error.response?.data;
       if (errorData) {
         logger.error(`Threads API error`, { details: errorData });
+        
+        // Highlight API Blocked errors directly in console for developer
+        if (errorData.message?.includes("API access blocked")) {
+          console.error("\x1b[31m[THREADS ERROR]\x1b[0m API Access Blocked! Your THREADS_ACCESS_TOKEN may be expired or lack permissions (missing threads_manage_replies).");
+        }
       }
       logger.error(`Failed to reply to Threads comment ${commentId}`, {
         error: errorData?.message || error.message,
       });
       return false;
+    }
+  }
+
+  /**
+   * Fetches metadata for a Threads post/media item.
+   * Useful for getting the original post text to provide context for AI replies.
+   */
+  static async getThreadContent(mediaId: string): Promise<string> {
+    const token =
+      process.env.THREADS_ACCESS_TOKEN?.trim() ||
+      process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim();
+
+    if (!token || !mediaId) {
+      return "a Threads post";
+    }
+
+    try {
+      const url = `${THREADS_API_URL}/${mediaId}?fields=text&access_token=${token}`;
+      const response = await axios.get(url);
+      return response.data?.text || "a Threads post";
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      logger.error(`Failed to fetch Threads content for ${mediaId}`, {
+        error: errorMessage,
+      });
+
+      if (errorMessage?.includes("API access blocked")) {
+        console.error("\x1b[33m[THREADS WARNING]\x1b[0m Cannot fetch thread context. API Access Blocked!");
+      }
+
+      return "a Threads post";
     }
   }
 }

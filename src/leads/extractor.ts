@@ -4,7 +4,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+// Guard initialization to avoid crash on empty string
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 /**
  * Lead Metadata and Structured Data Extractor
@@ -35,6 +36,9 @@ export class LeadExtractor {
     Respond ONLY with valid JSON.`;
 
     try {
+      if (!openai) {
+        throw new Error("OpenAI client not initialized.");
+      }
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo-0125", // Cost-effective for extraction
         messages: [{ role: "user", content: prompt }],

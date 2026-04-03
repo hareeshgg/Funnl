@@ -20,11 +20,13 @@ export class Humanizer {
    */
   static async longDelay(): Promise<void> {
     const minMins = 1;
-    const maxMins = 60;
+    const maxMins = 5; // default should be 60 keep in mind
     // randomInt doesn't include the max, so we add 1 to allow 60 mins
-    const delayMins = randomInt(minMins, maxMins + 1); 
+    const delayMins = randomInt(minMins, maxMins + 1);
     const delayMs = delayMins * 60 * 1000;
-    console.log(`[Humanizer] Sleeping for ${delayMins} minutes before responding...`);
+    console.log(
+      `[Humanizer] Sleeping for ${delayMins} minutes before responding...`,
+    );
     return new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
@@ -42,9 +44,12 @@ export class Humanizer {
    */
   static async typingDelay(message: string): Promise<void> {
     // Approx 250 characters per minute = ~4 characters per second
-    const delayPerChar = 150; 
+    const delayPerChar = 150;
     const baseDelay = 1000;
-    const totalDelay = Math.min(baseDelay + message.length * delayPerChar, 8000);
+    const totalDelay = Math.min(
+      baseDelay + message.length * delayPerChar,
+      8000,
+    );
     return this.wait(totalDelay * 0.8, totalDelay * 1.2);
   }
 }

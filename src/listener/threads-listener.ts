@@ -223,10 +223,50 @@ export class ThreadsListener {
    * Automated Posting (New Thread)
    */
   static async createPost(req: Request, res: Response): Promise<void> {
-    const { content } = req.body;
-    logger.info(`[Threads] Creating automated post: ${content}`);
-    res
-      .status(201)
-      .json({ status: "success", thread_id: "thread_" + Date.now() });
+    const { content, text, mediaType, imageUrl, videoUrl } = req.body;
+    const postText = content || text;
+
+    logger.info(`[Threads] Received request for automated post`, {
+      text: postText?.slice(0, 50),
+      mediaType,
+      imageUrl,
+      videoUrl,
+    });
+
+    if (!postText && !imageUrl && !videoUrl) {
+       res.status(400).json({ 
+        status: "error", 
+        message: "Post content, imageUrl, or videoUrl is required." 
+      });
+      return;
+    }
+
+    try {
+      const threadId = await ThreadsClient.publishPost({
+        text: postText,
+        mediaType: mediaType || (videoUrl ? "VIDEO" : imageUrl ? "IMAGE" : "TEXT"),
+        imageUrl,
+        videoUrl,
+      });
+
+      if (!threadId) {
+         res.status(500).json({ 
+          status: "error", 
+          message: "Failed to publish post to Threads. Check server logs." 
+        });
+        return;
+      }
+
+      res.status(201).json({ 
+        status: "success", 
+        thread_id: threadId 
+      });
+    } catch (error: any) {
+      logger.error("Error in ThreadsListener.createPost", { error: error.message });
+      res.status(500).json({ 
+        status: "error", 
+        message: error.message 
+      });
+    }
   }
 }

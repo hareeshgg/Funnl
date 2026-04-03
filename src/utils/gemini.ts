@@ -9,7 +9,7 @@ const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 
 const model = genAI
   ? genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || "gemini-flash-latest",
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",
     })
   : null;
 
@@ -42,8 +42,9 @@ Rules:
 - Be context-aware.
 - Avoid robotic or generic phrases.
 - Match tone of the comment (casual, excited, supportive).
+- Return ONLY the reply text itself. do not include labels.
 
-Examples:
+Example:
 Post: "I just made my first chatbot"
 Comment: "Congratulations"
 Reply: "Thanks man, I gave my all!"
@@ -52,13 +53,22 @@ Post: "Finally launched my startup"
 Comment: "Woah 🔥"
 Reply: "Thank you!! Means a lot 🔥"
 
-Now generate a reply:
-`;
+Post: "${threadText}"
+Comment: "${commentText}"
+Reply:`;
 
     const result = await (model as any).generateContent(prompt);
-    const text = result.response.text();
+    let text = result.response.text().trim();
 
-    return text.trim();
+    // Clean up any accidental labelling if it persists
+    if (text.includes("Reply:")) {
+      text = text.split("Reply:").pop()?.trim() || text;
+    }
+
+    // Remove quotes if the model wrapped the response in them
+    text = text.replace(/^"|"$/g, "");
+
+    return text;
   } catch (error: any) {
     logger.error("Gemini Error:", { error: error.message });
     return "Thanks a lot! 🙌"; // fallback response

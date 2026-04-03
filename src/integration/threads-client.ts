@@ -84,6 +84,130 @@ export class ThreadsClient {
   }
 
   /**
+   * Publishes a new top-level post to Threads.
+   * Supports TEXT, IMAGE, and VIDEO media types.
+   */
+  static async publishPost(params: {
+    text?: string;
+    mediaType?: "TEXT" | "IMAGE" | "VIDEO";
+    imageUrl?: string;
+    videoUrl?: string;
+  }): Promise<string | null> {
+    const token =
+      process.env.THREADS_ACCESS_TOKEN?.trim() ||
+      process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim();
+
+    const { text, mediaType = "TEXT", imageUrl, videoUrl } = params;
+
+    if (!token) {
+      logger.error("Missing Threads credentials for publishing post");
+      return null;
+    }
+
+    try {
+      // --- Step 1: Create a media container (Draft) ---
+      const createUrl = `${THREADS_API_URL}/me/threads`;
+      const createPayload: any = {
+        media_type: mediaType,
+        access_token: token,
+      };
+
+      if (text) createPayload.text = text;
+      if (mediaType === "IMAGE" && imageUrl) {
+        createPayload.image_url = imageUrl;
+        if (imageUrl.includes("localhost") || imageUrl.includes("127.0.0.1") || !imageUrl.startsWith("http")) {
+          logger.warn(`Potential issue: imageUrl "${imageUrl}" may not be publicly accessible by Threads API.`);
+        }
+      }
+      if (mediaType === "VIDEO" && videoUrl) {
+        createPayload.video_url = videoUrl;
+        if (videoUrl.includes("localhost") || videoUrl.includes("127.0.0.1") || !videoUrl.startsWith("http")) {
+          logger.warn(`Potential issue: videoUrl "${videoUrl}" may not be publicly accessible by Threads API.`);
+        }
+      }
+
+      logger.info(`Creating Threads ${mediaType} container...`, {
+        imageUrl: createPayload.image_url,
+        videoUrl: createPayload.video_url,
+      });
+      const createResponse = await axios.post(createUrl, createPayload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const creationId = createResponse.data.id;
+      if (!creationId) {
+        logger.error("Failed to get creationId from Threads API");
+        return null;
+      }
+
+      // --- Step 2: Handle processing (Especially for Video) ---
+      logger.debug(`Threads media container created: ${creationId}. Processing...`);
+      
+      let isReady = false;
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (!isReady && attempts < maxAttempts) {
+        attempts++;
+        // Minor wait before checking status
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        try {
+          const statusUrl = `${THREADS_API_URL}/${creationId}?fields=status,error_message&access_token=${token}`;
+          const statusResponse = await axios.get(statusUrl);
+          const status = statusResponse.data?.status;
+
+          if (status === "FINISHED") {
+            isReady = true;
+            logger.debug(`Media container ${creationId} is READY.`);
+          } else if (status === "ERROR") {
+            const errorMsg = statusResponse.data?.error_message || "Unknown error during processing";
+            logger.error(`Threads media processing failed: ${errorMsg}`);
+            return null;
+          } else {
+            logger.debug(`Media container ${creationId} still processing (Status: ${status}). Attempt ${attempts}/${maxAttempts}`);
+          }
+        } catch (statusError: any) {
+          // If status endpoint isn't supported or fails, we might just assume it's ready after a delay for simpler types
+          if (mediaType === "TEXT" || mediaType === "IMAGE") {
+            isReady = true; 
+            break;
+          }
+          logger.warn(`Could not fetch status for container ${creationId}. Retrying...`);
+        }
+      }
+
+      if (!isReady && mediaType === "VIDEO") {
+        logger.error(`Threads video processing timed out for ${creationId}`);
+        return null;
+      }
+
+      // --- Step 3: Publish the media container ---
+      const publishUrl = `${THREADS_API_URL}/me/threads_publish`;
+      const publishPayload = {
+        creation_id: creationId,
+        access_token: token,
+      };
+
+      const publishResponse = await axios.post(publishUrl, publishPayload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const publishedId = publishResponse.data.id;
+      logger.info(`Threads post successfully published`, { publishedId });
+
+      return publishedId;
+    } catch (error: any) {
+      const errorData = error.response?.data?.error || error.response?.data;
+      logger.error(`Failed to publish Threads post`, {
+        error: errorData?.message || error.message,
+        details: errorData,
+      });
+      return null;
+    }
+  }
+
+  /**
    * Fetches metadata for a Threads post/media item.
    * Useful for getting the original post text to provide context for AI replies.
    */

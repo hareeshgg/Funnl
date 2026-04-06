@@ -54,4 +54,38 @@ export class InstagramClient {
       return false;
     }
   }
+
+  /**
+   * Replies publicly to an Instagram comment
+   * @param commentId The ID of the comment to reply to
+   * @param text The reply text
+   */
+  static async replyToComment(commentId: string, text: string): Promise<boolean> {
+    const token = process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim();
+
+    if (!token || !commentId) {
+      logger.error("Missing Instagram credentials or commentId for public reply");
+      return false;
+    }
+
+    try {
+      const url = `${META_API_URL}/${commentId}/replies`;
+      const payload = { message: text };
+
+      const response = await axios.post(url, payload, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      logger.info(`Successfully replied to comment ${commentId}`, { replyId: response.data.id });
+      return true;
+
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error?.message || error.message;
+      logger.error(`Failed to reply to comment ${commentId}`, { error: errorMsg });
+      return false;
+    }
+  }
 }

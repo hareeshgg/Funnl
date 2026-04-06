@@ -14,15 +14,17 @@ const model = genAI
   : null;
 
 /**
- * Generates a context-aware AI reply for a Threads comment.
+ * Generates a context-aware AI reply for a comment (Instagram or Threads).
  *
- * @param threadText Content of the original thread/post
- * @param commentText Content of the incoming comment
+ * @param postContext Summary of the original post or "an Instagram post/Threads post"
+ * @param currentComment Content of the latest incoming comment
+ * @param history Array of past interactions for relationship building
  * @returns Generated reply string
  */
 export async function generateReply(
-  threadText: string,
-  commentText: string,
+  postContext: string,
+  currentComment: string,
+  history: any[] = [],
 ): Promise<string | null> {
   try {
     if (!process.env.GEMINI_API_KEY) {
@@ -30,47 +32,51 @@ export async function generateReply(
       return null;
     }
 
+    const conversationContext = history
+      .map((m) => `${m.sender.toUpperCase()}: ${m.text}`)
+      .join("\n");
+
     const prompt = `
-You are a human social media user replying to comments on your Threads post.
+You are a human social media user building relationships in the comments section of your post.
 
-Post: "${threadText}"
-Comment: "${commentText}"
+Post Context: "${postContext}"
+Previous Conversation:
+${conversationContext || "No previous history."}
 
-Rules:
-- Reply naturally like a real person.
-- Keep it short (1 sentence preferred).
-- Be context-aware.
-- Avoid robotic or generic phrases.
-- Match tone of the comment (casual, excited, supportive).
-- Return ONLY the reply text itself. do not include labels.
+New Incoming Comment: "${currentComment}"
 
-Example:
-Post: "I just made my first chatbot"
-Comment: "Congratulations"
-Reply: "Thanks man, I gave my all!"
+Rules for Engagement:
+1. BE HUMAN: Reply naturally, casually, and authentically. No generic bot phrases.
+2. BUILD RAPPORT: Focus on the user, answer their questions publicly, and be helpful.
+3. THE "NUDGE" TO DM:
+   - If this is the FIRST or SECOND interaction, DO NOT ask them to DM. Just be helpful.
+   - If the conversation is warm (3+ messages) OR the user asks for pricing, private info, or a link, ask them to "DM me for the details so we can chat further!"
+4. BREVITY: Keep it short (1-2 sentences max).
+5. FORMAT: Return ONLY the reply text. Do not include labels like "Reply:".
 
-Post: "Finally launched my startup"
-Comment: "Woah 🔥"
-Reply: "Thank you!! Means a lot 🔥"
+Example 1 (Early Interaction):
+Comment: "Love this! How long did it take?"
+Reply: "Thanks! It took about 3 weeks of late nights, but totally worth it haha."
 
-Post: "${threadText}"
-Comment: "${commentText}"
-Reply:`;
+Example 2 (Warm Interaction):
+History: [User asks about features, AI answers]
+Comment: "Sounds perfect. How can I get started?"
+Reply: "I'd love to help with that! DM me so I can get you the setup link and some extra info! 📩"
+
+Current Reply:`;
 
     const result = await (model as any).generateContent(prompt);
     let text = result.response.text().trim();
 
-    // Clean up any accidental labelling if it persists
+    // Clean up any accidental labelling
     if (text.includes("Reply:")) {
       text = text.split("Reply:").pop()?.trim() || text;
     }
-
-    // Remove quotes if the model wrapped the response in them
     text = text.replace(/^"|"$/g, "");
 
     return text;
   } catch (error: any) {
     logger.error("Gemini Error:", { error: error.message });
-    return "Thanks a lot! 🙌"; // fallback response
+    return "Thanks for your comment! I'd love to chat more—feel free to DM me! 📩"; // fallback
   }
 }

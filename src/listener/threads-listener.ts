@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { MessageProcessor } from "../engine/processor";
+import { ConversationManager } from "../conversation/conversation-manager";
 import { ThreadsClient } from "../integration/threads-client";
 import { generateReply } from "../utils/gemini";
 import logger from "../logger/logger";
@@ -181,39 +182,49 @@ export class ThreadsListener {
           }
         }
 
-        logger.info(`Processing Threads comment from ${senderId}`, {
+        logger.info(`Processing Threads Comment-to-Comment rapport for ${senderId}`, {
           comment,
           commentId,
           parentId: extracted.parentId,
         });
 
-        // 3. AI Reply Generation (Gemini)
+        // 1. Get or Create Lead for Comment history
+        const lead = await ConversationManager.getLeadByHandle(senderId, "threads");
+        
+        // 2. Add User Comment to History
+        await ConversationManager.addMessage(lead.id, "user", comment);
+
+        // 3. Get Full History for Gemini Context
+        const history = await ConversationManager.getHistory(lead.id);
+
+        // 4. AI Relationship-Building Reply (Gemini)
         let aiReply: string | null = null;
         if (process.env.GEMINI_API_KEY) {
           const threadText = extracted.parentId
             ? await ThreadsClient.getThreadContent(extracted.parentId)
             : "a Threads post";
 
-          aiReply = await generateReply(threadText, comment);
+          aiReply = await generateReply(threadText, comment, history);
         }
 
-        // 4. Unified Processor Flow (Tracking, CRM, and Reply)
-        await MessageProcessor.process(
-          senderId,
-          comment,
-          platform,
-          commentId,
-          aiReply,
-        );
+        if (!aiReply) {
+          aiReply = "Thanks for your comment! I'd love to chat more—feel free to DM me! 📩";
+        }
 
-        logger.info(`Successfully processed Threads comment ${commentId}`);
+        // 5. Add AI Reply to History
+        await ConversationManager.addMessage(lead.id, "ai", aiReply);
+
+        // 6. Public Reply to Comment
+        await ThreadsClient.replyToComment(commentId, aiReply);
+
+        logger.info(`Successfully replied to Threads comment ${commentId} with history-aware AI`);
       } catch (error: any) {
-        logger.error(`Error processing batch comment ${commentId} for ${senderId}`, {
+        logger.error(`Error in Threads Relationship funnel for ${commentId}`, {
           error: error.message,
         });
 
         const fallbackReply =
-          "Thanks for your comment! 🤖 The bot encountered a minor issue, but we'll follow up soon.";
+          "Thanks for your comment! 🤖 We'll follow up soon.";
         await ThreadsClient.replyToComment(commentId, fallbackReply);
       }
     }

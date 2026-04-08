@@ -7,20 +7,58 @@ generator client {
 }
 
 model Lead {
-  id                    String   @id @default(uuid())
-  platform              String   // Enum: "instagram" | "threads"
-  handle                String
-  conversation_history  Json     @default("[]")
-  intent                String?  // Enum: "buying" | "browsing" | "curious"
-  sentiment             String?  // Enum: "positive" | "neutral" | "negative"
-  lead_stage            String   @default("new") // Enum: "new" | "qualified" | "hot"
-  budget                String?
-  product_interest      String?
-  phone                 String?
-  email                 String?
-  last_interaction      DateTime @default(now())
-  created_at            DateTime @default(now())
-  updated_at            DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  org_id               String
+  platform             String
+  handle               String
+  conversation_history Json     @default("[]")
+  intent               String?
+  sentiment            String?
+  lead_stage           String   @default("new")
+  budget               String?
+  product_interest     String?
+  phone                String?
+  email                String?
+  last_interaction     DateTime @default(now())
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
 
-  @@index([handle, platform])
+  @@index([handle, platform, org_id])
+}
+
+model AiFunnlConfig {
+  id                   Int       @id @default(1)
+  org_id               String    @unique
+  instagram_account_id String?
+  facebook_page_id     String?
+  threads_account_id   String?
+  instagram_access_token String?
+  threads_access_token  String?
+  token_expiry          DateTime?
+  permissions          Json?
+  gemini_api_key       String?
+  gemini_model         String?   @default("gemini-2.5-flash-lite")
+  custom_prompt        String?
+  is_enabled           Boolean   @default(false)
+  auto_reply_comments  Boolean   @default(false)
+  auto_reply_dm        Boolean   @default(false)
+
+  // Additional technical fields from the app
+  instagram_app_id     String?
+  instagram_app_secret String?
+  threads_bot_username String?
+  webhook_verify_token String?
+  openai_api_key       String?
+  openai_model         String? @default("gpt-4-turbo-preview")
+  humanize_enabled     Boolean @default(true)
+  humanize_delay_min   Int?    @default(2000)
+  humanize_delay_max   Int?    @default(5000)
+  long_delay_min       Int?
+  long_delay_max       Int?
+  deduplication_ttl    Int?    @default(300000)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("ai_funnl_config")
 }

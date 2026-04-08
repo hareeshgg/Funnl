@@ -1,24 +1,25 @@
-import { OpenAI } from "openai";
-import dotenv from "dotenv";
-
-dotenv.config();
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-// Guard initialization to avoid crash on empty string
-const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+import { GeminiClient } from "../utils/gemini";
+import logger from "../logger/logger";
 
 /**
- * Hybrid Intelligence System utilizing Rules + LLM
+ * Hybrid Intelligence System utilizing Rules + LLM per Organization
  */
 export class HybridEngine {
+  private geminiClient: GeminiClient;
+  private customPrompt: string | null;
+
+  constructor(geminiClient: GeminiClient, customPrompt?: string | null) {
+    this.geminiClient = geminiClient;
+    this.customPrompt = customPrompt || null;
+  }
+
   /**
    * Fast rule-based response for deterministic triggers
    * @param message User message text
    */
-  static async checkRules(message: string): Promise<string | null> {
+  async checkRules(message: string): Promise<string | null> {
     const text = message.toLowerCase();
     
-    // Simple examples of rule-based triggers
     if (text.includes("price") || text.includes("how much")) {
       return "I'd love to share our pricing packages with you! Are you looking for individual or team options?";
     }
@@ -28,61 +29,26 @@ export class HybridEngine {
     }
 
     if (text.includes("hi") || text.includes("hello") || text.includes("hey")) {
-      return "Hi there! 👋 I'm the AI Social Agent for Sales Command. How can I help you today?";
+      return "Hi there! 👋 How can I help you today?";
     }
 
     return null;
   }
 
   /**
-   * LLM Fallback for complex queries
-   * @param history Conversation history
-   * @param userInput Message string
+   * Get the best response using hybrid approach (Rules -> LLM)
    */
-  static async llmFallback(history: any[], userInput: string): Promise<string> {
-    if (!OPENAI_API_KEY) {
-      return "I'm sorry, I'm having trouble processing that right now. Could you try again later?";
-    }
-
-    const messages = [
-      {
-        role: "system" as const,
-        content: `You are a professional AI Social Agent for Sales Command. 
-        Your goal is to be helpful, human-like, and qualify leads. 
-        You should capture Email and Phone naturally in the conversation.
-        Keep responses concise (under 250 characters) for social media.`,
-      },
-      ...history.map((msg: any) => ({
-        role: (msg.sender === "ai" ? "assistant" : "user") as "assistant" | "user",
-        content: msg.text,
-      })),
-      { role: "user" as "user", content: userInput },
-    ];
-
-    try {
-      if (!openai) {
-        throw new Error("OpenAI client not initialized.");
-      }
-      const response = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview", // Or gpt-3.5-turbo for cost
-        messages: messages,
-        max_tokens: 150,
-        temperature: 0.7,
-      });
-
-      return response.choices[0]?.message?.content || "I'm here to help! Tell me more about your requirements.";
-    } catch (error) {
-      console.error("OpenAI Error:", error);
-      return "I'm having a technical glitch, but I'll be back shortly! Can you send that again?";
-    }
-  }
-
-  /**
-   * Get the best response using hybrid approach
-   */
-  static async getResponse(history: any[], userInput: string): Promise<string> {
+  async getResponse(history: any[], userInput: string, context: string = "social media interaction"): Promise<string> {
+    // 1. Try deterministic rules
     const ruleResponse = await this.checkRules(userInput);
     if (ruleResponse) return ruleResponse;
-    return await this.llmFallback(history, userInput);
+
+    // 2. Fallback to Gemini
+    return await this.geminiClient.generateReply(
+      context, 
+      userInput, 
+      history, 
+      this.customPrompt
+    );
   }
 }

@@ -7,15 +7,17 @@ const THREADS_API_URL = "https://graph.threads.net/v1.0";
  * Service to interact with Threads via Meta Graph API
  */
 export class ThreadsClient {
-  static async replyToComment(
+  private token: string;
+
+  constructor(token: string) {
+    this.token = token;
+  }
+
+  async replyToComment(
     commentId: string,
     text: string,
   ): Promise<boolean> {
-    const token =
-      process.env.THREADS_ACCESS_TOKEN?.trim() ||
-      process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim();
-
-    if (!token || !commentId || !text) {
+    if (!this.token || !commentId || !text) {
       logger.error("Missing Threads credentials or comment payload");
       return false;
     }
@@ -31,7 +33,7 @@ export class ThreadsClient {
         media_type: "TEXT",
         text: text,
         reply_to_id: commentId,
-        access_token: token,
+        access_token: this.token,
       };
 
       const createResponse = await axios.post(createUrl, createPayload, {
@@ -51,7 +53,7 @@ export class ThreadsClient {
       const publishUrl = `${THREADS_API_URL}/me/threads_publish`;
       const publishPayload = {
         creation_id: creationId,
-        access_token: token,
+        access_token: this.token,
       };
 
       const publishResponse = await axios.post(publishUrl, publishPayload, {
@@ -73,7 +75,7 @@ export class ThreadsClient {
         
         // Highlight API Blocked errors directly in console for developer
         if (errorData.message?.includes("API access blocked")) {
-          console.error("\x1b[31m[THREADS ERROR]\x1b[0m API Access Blocked! Your THREADS_ACCESS_TOKEN may be expired or lack permissions (missing threads_manage_replies).");
+          console.error("\x1b[31m[THREADS ERROR]\x1b[0m API Access Blocked! Your token may be expired or lack permissions (missing threads_manage_replies).");
         }
       }
       logger.error(`Failed to reply to Threads comment ${commentId}`, {
@@ -87,19 +89,15 @@ export class ThreadsClient {
    * Publishes a new top-level post to Threads.
    * Supports TEXT, IMAGE, and VIDEO media types.
    */
-  static async publishPost(params: {
+  async publishPost(params: {
     text?: string;
     mediaType?: "TEXT" | "IMAGE" | "VIDEO";
     imageUrl?: string;
     videoUrl?: string;
   }): Promise<string | null> {
-    const token =
-      process.env.THREADS_ACCESS_TOKEN?.trim() ||
-      process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim();
-
     const { text, mediaType = "TEXT", imageUrl, videoUrl } = params;
 
-    if (!token) {
+    if (!this.token) {
       logger.error("Missing Threads credentials for publishing post");
       return null;
     }
@@ -109,7 +107,7 @@ export class ThreadsClient {
       const createUrl = `${THREADS_API_URL}/me/threads`;
       const createPayload: any = {
         media_type: mediaType,
-        access_token: token,
+        access_token: this.token,
       };
 
       if (text) createPayload.text = text;
@@ -153,7 +151,7 @@ export class ThreadsClient {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
         try {
-          const statusUrl = `${THREADS_API_URL}/${creationId}?fields=status,error_message&access_token=${token}`;
+          const statusUrl = `${THREADS_API_URL}/${creationId}?fields=status,error_message&access_token=${this.token}`;
           const statusResponse = await axios.get(statusUrl);
           const status = statusResponse.data?.status;
 
@@ -186,7 +184,7 @@ export class ThreadsClient {
       const publishUrl = `${THREADS_API_URL}/me/threads_publish`;
       const publishPayload = {
         creation_id: creationId,
-        access_token: token,
+        access_token: this.token,
       };
 
       const publishResponse = await axios.post(publishUrl, publishPayload, {
@@ -211,17 +209,13 @@ export class ThreadsClient {
    * Fetches metadata for a Threads post/media item.
    * Useful for getting the original post text to provide context for AI replies.
    */
-  static async getThreadContent(mediaId: string): Promise<string> {
-    const token =
-      process.env.THREADS_ACCESS_TOKEN?.trim() ||
-      process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim();
-
-    if (!token || !mediaId) {
+  async getThreadContent(mediaId: string): Promise<string> {
+    if (!this.token || !mediaId) {
       return "a Threads post";
     }
 
     try {
-      const url = `${THREADS_API_URL}/${mediaId}?fields=text&access_token=${token}`;
+      const url = `${THREADS_API_URL}/${mediaId}?fields=text&access_token=${this.token}`;
       const response = await axios.get(url);
       return response.data?.text || "a Threads post";
     } catch (error: any) {

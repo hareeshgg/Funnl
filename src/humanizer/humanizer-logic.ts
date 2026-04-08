@@ -20,7 +20,7 @@ export class Humanizer {
    */
   static async longDelay(): Promise<void> {
     const minMins = 1;
-    const maxMins = 5; // default should be 60 keep in mind
+    const maxMins = 2; // default should be 60 keep in mind
     // randomInt doesn't include the max, so we add 1 to allow 60 mins
     const delayMins = randomInt(minMins, maxMins + 1);
     const delayMs = delayMins * 60 * 1000;

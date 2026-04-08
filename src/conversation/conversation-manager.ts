@@ -1,39 +1,34 @@
-import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
 import { Lead } from "@prisma/client";
-import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
-
-// In Prisma 7, a driver adapter is REQUIRED for database connections.
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool as any);
-const prisma = new PrismaClient({ adapter });
+import { prisma } from "../db/prisma";
+import logger from "../logger/logger";
 
 /**
- * Handles persistent tracking per user
+ * Handles persistent tracking per user, isolated by organization
  */
 export class ConversationManager {
   /**
-   * Loads or creates a lead by handle and platform
+   * Loads or creates a lead by handle and platform, scoped to an org_id
    */
   static async getLeadByHandle(
     handle: string,
     platform: string,
+    orgId: string,
   ): Promise<Lead> {
     let lead = await prisma.lead.findFirst({
-      where: { handle, platform },
+      where: { handle, platform, org_id: orgId },
     });
 
     if (!lead) {
       lead = await prisma.lead.create({
         data: {
+          org_id: orgId,
           handle,
           platform: platform as any,
           conversation_history: [],
           lead_stage: "new",
         },
       });
-      console.log(`Created new lead for ${handle} on ${platform}.`);
+      logger.info(`Created new lead for ${handle} on ${platform} (Org: ${orgId}).`);
     }
 
     return lead;
@@ -74,7 +69,7 @@ export class ConversationManager {
     leadId: string,
     metadata: Partial<Lead>,
   ): Promise<Lead> {
-    const { id, created_at, updated_at, ...data } = metadata;
+    const { id, created_at, updated_at, org_id, ...data } = metadata;
     return await prisma.lead.update({
       where: { id: leadId },
       data: data as any,

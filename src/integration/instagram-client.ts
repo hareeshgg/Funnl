@@ -7,25 +7,23 @@ const META_API_URL = "https://graph.facebook.com/v21.0";
  * Service to interact with the Instagram Graph API
  */
 export class InstagramClient {
+  private token: string;
+
+  constructor(token: string) {
+    this.token = token;
+  }
+
   /**
    * Sends a text message to a user on Instagram
    * @param recipientId The Instagram-scoped ID of the user
    * @param text The message text to send
    */
-  static async sendTextMessage(recipientId: string, text: string): Promise<boolean> {
-    const pageId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID?.trim();
-    const token = process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim();
-    const fbPageId = process.env.FACEBOOK_PAGE_ID?.trim();
-
-    if (!token || (!pageId && !fbPageId)) {
-      logger.error("Missing Instagram credentials (TOKEN and at least one ID are required)");
+  async sendTextMessage(recipientId: string, text: string): Promise<boolean> {
+    if (!this.token) {
+      logger.error("Missing Instagram access token for DM");
       return false;
     }
 
-    // Masked log for debugging
-    logger.info(`Using Instagram Token (length: ${token.length}, prefix: ${token.substring(0, 10)}...)`);
-
-    // Using /me/messages is the safest way to ensure we are using the Page ID associated with the token
     try {
       const url = `${META_API_URL}/me/messages`;
       
@@ -38,7 +36,7 @@ export class InstagramClient {
       const response = await axios.post(url, payload, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${this.token}`,
         },
       });
 
@@ -60,11 +58,9 @@ export class InstagramClient {
    * @param commentId The ID of the comment to reply to
    * @param text The reply text
    */
-  static async replyToComment(commentId: string, text: string): Promise<boolean> {
-    const token = process.env.INSTAGRAM_PAGE_ACCESS_TOKEN?.trim();
-
-    if (!token || !commentId) {
-      logger.error("Missing Instagram credentials or commentId for public reply");
+  async replyToComment(commentId: string, text: string): Promise<boolean> {
+    if (!this.token || !commentId) {
+      logger.error("Missing Instagram access token or commentId for public reply");
       return false;
     }
 
@@ -75,7 +71,7 @@ export class InstagramClient {
       const response = await axios.post(url, payload, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${this.token}`,
         },
       });
 

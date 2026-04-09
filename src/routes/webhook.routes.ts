@@ -40,9 +40,45 @@ router.post("/meta", async (req: Request, res: Response) => {
     }
   }
 
-  // 2. Identify Event Source Org
   const body = req.body;
-  if (!body || !body.entry || !Array.isArray(body.entry)) {
+  if (!body) return res.status(200).send("No body");
+
+  // --- THREADS NATIVE WEBHOOK FORMAT DETECT ---
+  if (Array.isArray(body.values) && body.target_id) {
+    for (const val of body.values) {
+      if (val.field === "replies" || val.field === "reply" || val.field === "mention" || val.field === "mentions") {
+        const payloadValue = val.value;
+        const threadsUserId = payloadValue?.root_post?.owner_id || body.target_id;
+        
+        // Construct an artificial "entry" to trick the standard processor into accepting it
+        const artificialEntry = {
+          id: threadsUserId,
+          time: body.time,
+          changes: [
+            {
+              field: "reply", 
+              value: {
+                id: payloadValue.id,
+                text: payloadValue.text,
+                from: { id: payloadValue.username }
+              }
+            }
+          ]
+        };
+
+        try {
+          // Force platformType = 'threads'
+          await FunnlService.processWebhookEvent(threadsUserId, artificialEntry, "threads");
+        } catch (err: any) {
+          logger.error(`Failed to process native Threads event: ${err.message}`);
+        }
+      }
+    }
+    return res.status(200).send("EVENT_RECEIVED");
+  }
+
+  // --- STANDARD INSTAGRAM WEBHOOK FORMAT ---
+  if (!body.entry || !Array.isArray(body.entry)) {
     return res.status(200).send("No valid entry found"); // Acknowledge Meta anyway
   }
 

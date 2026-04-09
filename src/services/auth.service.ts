@@ -99,9 +99,9 @@ export class AuthService {
       // Wait, is it guaranteed? Some API accounts use long lived immediately. Threads does have th_exchange_token
       const longLivedUserToken = await MetaUtils.getThreadsLongLivedToken(shortLivedUserToken);
 
-      // 3. Fetch Threads User ID
-      const threadsUserId = await MetaUtils.getThreadsUserId(longLivedUserToken);
-      if (!threadsUserId) {
+      // 3. Fetch Threads User
+      const threadsUser = await MetaUtils.getThreadsUser(longLivedUserToken);
+      if (!threadsUser || !threadsUser.id) {
         throw new Error("Failed to extract Threads User ID from the access token.");
       }
 
@@ -109,20 +109,22 @@ export class AuthService {
       await prisma.aiFunnlConfig.upsert({
         where: { org_id: orgId },
         update: {
-          threads_account_id: threadsUserId,
+          threads_account_id: threadsUser.id,
+          threads_bot_username: threadsUser.username,
           threads_access_token: encrypt(longLivedUserToken),
           updated_at: new Date(),
         },
         create: {
           org_id: orgId,
-          threads_account_id: threadsUserId,
+          threads_account_id: threadsUser.id,
+          threads_bot_username: threadsUser.username,
           threads_access_token: encrypt(longLivedUserToken),
           auto_reply_comments: true,
           auto_reply_dm: true,
         },
       });
 
-      logger.info(`Threads OAuth successful for org ${orgId}. Threads User ID: ${threadsUserId}`);
+      logger.info(`Threads OAuth successful for org ${orgId}. Threads User ID: ${threadsUser.id}`);
     } catch (error: any) {
       logger.error(`Error during Threads OAuth for org ${orgId}: ${error.message}`, {
         stack: error.stack,

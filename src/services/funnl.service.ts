@@ -66,7 +66,15 @@ export class FunnlService {
           const mid = msgEvent.message?.mid;
 
           if (senderId && text && mid) {
-            if (senderId === platformUserId) continue; // Self-reply Filter
+            if (
+              senderId === platformUserId ||
+              senderId === config.instagram_account_id ||
+              senderId === config.threads_account_id ||
+              senderId === config.threads_bot_username
+            ) {
+              logger.debug(`[Funnl] Skipping self-reply (DM) from sender: ${senderId}`);
+              continue; // Self-reply Filter
+            }
             if (this.isDuplicate(mid)) continue; // Deduplication
 
             await processor.process(senderId, text, "instagram");
@@ -81,15 +89,23 @@ export class FunnlService {
         logger.info(`Auto-reply comments disabled for org ${config.org_id}. skipping.`);
       } else {
         for (const change of entry.changes) {
-          // Both IG and Threads use field: "comments"
-          if (change.field === "comments") {
+          // Instagram uses "comments", Threads uses "reply"
+          if (change.field === "comments" || change.field === "reply") {
             const val = change.value;
             const senderId = val.from?.id;
             const text = val.text;
             const commentId = val.id;
 
             if (senderId && text && commentId) {
-              if (senderId === platformUserId) continue; // Self-reply Filter
+              if (
+                senderId === platformUserId ||
+                senderId === config.instagram_account_id ||
+                senderId === config.threads_account_id ||
+                senderId === config.threads_bot_username
+              ) {
+                logger.debug(`[Funnl] Skipping self-reply (Comment/Reply) from sender: ${senderId}`);
+                continue; // Self-reply Filter
+              }
               if (this.isDuplicate(commentId)) continue; // Deduplication
 
               // Determine platform based on payload hint or config presence

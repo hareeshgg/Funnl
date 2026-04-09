@@ -27,7 +27,9 @@ export class MetaUtils {
   /**
    * Exchanges a short-lived user access token for a long-lived one.
    */
-  static async getLongLivedToken(shortLivedToken: string): Promise<{ access_token: string; expires_in?: number }> {
+  static async getLongLivedToken(
+    shortLivedToken: string,
+  ): Promise<{ access_token: string; expires_in?: number }> {
     const url = `${META_BASE_URL}/${META_API_VERSION}/oauth/access_token`;
     const response = await axios.get(url, {
       params: {
@@ -54,7 +56,10 @@ export class MetaUtils {
   /**
    * Fetches the Instagram Business Account ID associated with a Facebook Page.
    */
-  static async getInstagramBusinessAccountId(pageId: string, pageAccessToken: string): Promise<string | null> {
+  static async getInstagramBusinessAccountId(
+    pageId: string,
+    pageAccessToken: string,
+  ): Promise<string | null> {
     const url = `${META_BASE_URL}/${META_API_VERSION}/${pageId}`;
     const response = await axios.get(url, {
       params: {
@@ -68,7 +73,10 @@ export class MetaUtils {
   /**
    * Fetches Page access token for a specific page.
    */
-  static async getPageAccessToken(pageId: string, userAccessToken: string): Promise<string | null> {
+  static async getPageAccessToken(
+    pageId: string,
+    userAccessToken: string,
+  ): Promise<string | null> {
     const url = `${META_BASE_URL}/${META_API_VERSION}/${pageId}`;
     const response = await axios.get(url, {
       params: {
@@ -80,9 +88,11 @@ export class MetaUtils {
   }
 
   /**
-   * Fetches the Threads User ID for the authenticated account.
+   * Fetches the Threads User ID and Username for the authenticated account.
    */
-  static async getThreadsUserId(accessToken: string): Promise<string | null> {
+  static async getThreadsUser(
+    accessToken: string,
+  ): Promise<{ id: string; username: string } | null> {
     try {
       const url = `https://graph.threads.net/v1.0/me`;
       const response = await axios.get(url, {
@@ -91,7 +101,9 @@ export class MetaUtils {
           access_token: accessToken,
         },
       });
-      return response.data.id || null;
+      return response.data.id && response.data.username
+        ? { id: response.data.id, username: response.data.username }
+        : null;
     } catch (err: any) {
       logger.error(`Failed to fetch Threads User ID: ${err.message}`);
       return null;
@@ -101,7 +113,10 @@ export class MetaUtils {
   /**
    * Exchanges a Threads authorization code for a short-lived access token.
    */
-  static async getThreadsShortLivedToken(code: string, redirectUri: string): Promise<string> {
+  static async getThreadsShortLivedToken(
+    code: string,
+    redirectUri: string,
+  ): Promise<string> {
     const url = "https://graph.threads.net/oauth/access_token";
     const formParams = new URLSearchParams({
       client_id: process.env.THREADS_APP_ID || "",

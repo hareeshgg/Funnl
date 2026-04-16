@@ -3,7 +3,7 @@ import { decrypt } from "../utils/encryption";
 import { InstagramClient } from "../integration/instagram-client";
 import { ThreadsClient } from "../integration/threads-client";
 import { MessageProcessor } from "../engine/processor";
-import { GeminiClient } from "../utils/gemini";
+import { ProviderFactory } from "../engine/providers/ProviderFactory";
 import logger from "../logger/logger";
 
 export class FunnlService {
@@ -32,7 +32,16 @@ export class FunnlService {
     // 2. Initialize Org-specific Clients & AI
     const instagramAccessToken = decrypt(config.instagram_access_token);
     const threadsAccessToken = decrypt(config.threads_access_token);
-    const geminiApiKey = decrypt(config.gemini_api_key) || process.env.GEMINI_API_KEY || "";
+    
+    // Decrypt all potential API keys
+    const decryptedConfig = {
+      ...config,
+      gemini_api_key: decrypt(config.gemini_api_key) || process.env.GEMINI_API_KEY || "",
+      openai_api_key: decrypt(config.openai_api_key) || process.env.OPENAI_API_KEY || "",
+      deepseek_api_key: decrypt(config.deepseek_api_key) || process.env.DEEPSEEK_API_KEY || "",
+      grok_api_key: decrypt(config.grok_api_key) || process.env.GROK_API_KEY || "",
+      qwen_api_key: decrypt(config.qwen_api_key) || process.env.QWEN_API_KEY || "",
+    };
     
     // Fallback: use the main token if platform specific one isn't available
     const activeInstagramToken = instagramAccessToken;
@@ -45,13 +54,13 @@ export class FunnlService {
 
     const instagramClient = new InstagramClient(activeInstagramToken || "");
     const threadsClient = new ThreadsClient(activeThreadsToken || "");
-    const geminiClient = new GeminiClient(geminiApiKey);
+    const provider = ProviderFactory.getProvider(decryptedConfig);
 
     const processor = new MessageProcessor(
       config.org_id, 
       instagramClient, 
       threadsClient, 
-      geminiClient, 
+      provider, 
       config.custom_prompt
     );
 

@@ -5,7 +5,7 @@ import { LeadExtractor } from "../leads/extractor";
 import { SalesCommandClient } from "../integration/sales-command-client";
 import { InstagramClient } from "../integration/instagram-client";
 import { ThreadsClient } from "../integration/threads-client";
-import { GeminiClient } from "../utils/gemini";
+import { BaseProvider } from "./providers/BaseProvider";
 import logger from "../logger/logger";
 
 /**
@@ -22,14 +22,14 @@ export class MessageProcessor {
     orgId: string, 
     instagramClient: InstagramClient, 
     threadsClient: ThreadsClient,
-    geminiClient: GeminiClient,
+    provider: BaseProvider,
     customPrompt?: string | null
   ) {
     this.orgId = orgId;
     this.instagramClient = instagramClient;
     this.threadsClient = threadsClient;
-    this.hybridEngine = new HybridEngine(geminiClient, customPrompt);
-    this.leadExtractor = new LeadExtractor(geminiClient);
+    this.hybridEngine = new HybridEngine(provider, customPrompt);
+    this.leadExtractor = new LeadExtractor(provider);
   }
 
   /**

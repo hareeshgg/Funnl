@@ -1,9 +1,9 @@
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
 }
 
 model Lead {
@@ -27,38 +27,312 @@ model Lead {
 }
 
 model AiFunnlConfig {
-  id                   Int       @id @default(1)
-  org_id               String    @unique
-  instagram_account_id String?
-  facebook_page_id     String?
-  threads_account_id   String?
+  id                     Int       @id @default(1)
+  org_id                 String    @unique
+  instagram_account_id   String?
+  facebook_page_id       String?
+  threads_account_id     String?
   instagram_access_token String?
-  threads_access_token  String?
-  token_expiry          DateTime?
-  permissions          Json?
-  gemini_api_key       String?
-  gemini_model         String?   @default("gemini-2.5-flash-lite")
-  custom_prompt        String?
-  is_enabled           Boolean   @default(false)
-  auto_reply_comments  Boolean   @default(false)
-  auto_reply_dm        Boolean   @default(false)
-
-  // Additional technical fields from the app
-  instagram_app_id     String?
-  instagram_app_secret String?
-  threads_bot_username String?
-  webhook_verify_token String?
-  openai_api_key       String?
-  openai_model         String? @default("gpt-4-turbo-preview")
-  humanize_enabled     Boolean @default(true)
-  humanize_delay_min   Int?    @default(2000)
-  humanize_delay_max   Int?    @default(5000)
-  long_delay_min       Int?
-  long_delay_max       Int?
-  deduplication_ttl    Int?    @default(300000)
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  threads_access_token   String?
+  token_expiry           DateTime?
+  refresh_token          String?
+  permissions            Json?
+  gemini_api_key         String?
+  gemini_model           String?   @default("gemini-2.5-flash-lite")
+  custom_prompt          String?
+  is_enabled             Boolean   @default(false)
+  auto_reply_comments    Boolean   @default(false)
+  auto_reply_dm          Boolean   @default(false)
+  instagram_app_id       String?
+  instagram_app_secret   String?
+  threads_bot_username   String?
+  webhook_verify_token   String?
+  openai_api_key         String?
+  openai_model           String?   @default("gpt-4-turbo-preview")
+  humanize_enabled       Boolean   @default(true)
+  humanize_delay_min     Int?      @default(2000)
+  humanize_delay_max     Int?      @default(5000)
+  long_delay_min         Int?
+  long_delay_max         Int?
+  deduplication_ttl      Int?      @default(300000)
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+  selected_provider      String?   @default("gemini")
+  ai_model               String?
+  grok_api_key           String?
+  deepseek_api_key       String?
+  qwen_api_key           String?
 
   @@map("ai_funnl_config")
+}
+
+model migrations__ {
+  id          Int       @id @default(dbgenerated("nextval('__migrations___id_seq'::regclass)"))
+  name        String    @unique @db.VarChar(255)
+  executed_at DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@map("__migrations__")
+}
+
+model audit_logs {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type String    @db.VarChar(50)
+  entity_id   String?   @db.Uuid
+  action      String    @db.VarChar(100)
+  user_id     String?   @db.Uuid
+  timestamp   DateTime? @default(now()) @db.Timestamptz(6)
+  changes     Json?
+
+  @@index([timestamp(sort: Desc), entity_type, user_id], map: "idx_audit_logs_composite")
+  @@index([entity_type], map: "idx_audit_logs_entity_type")
+  @@index([timestamp(sort: Desc)], map: "idx_audit_logs_timestamp")
+  @@index([user_id], map: "idx_audit_logs_user_id")
+}
+
+model contacts {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String?   @db.Uuid
+  first_name String    @db.VarChar(100)
+  last_name  String    @db.VarChar(100)
+  email      String?   @db.VarChar(255)
+  phone      String?   @db.VarChar(50)
+  company    String?   @db.VarChar(255)
+  job_title  String?   @db.VarChar(255)
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  users      users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  deals      deals[]
+  leads      leads[]
+  tasks      tasks[]
+}
+
+model deals {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id             String?   @db.Uuid
+  owner_id            String?   @db.Uuid
+  name                String    @db.VarChar(255)
+  amount              Decimal   @default(0.00) @db.Decimal(15, 2)
+  stage               String?   @default("prospecting") @db.VarChar(100)
+  probability         Int?      @default(10)
+  expected_close_date DateTime? @db.Date
+  created_at          DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime? @default(now()) @db.Timestamptz(6)
+  contact_id          String?   @db.Uuid
+  contacts            contacts? @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  leads               leads?    @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users               users?    @relation(fields: [owner_id], references: [id], onUpdate: NoAction)
+  tasks               tasks[]
+
+  @@index([contact_id], map: "idx_deals_contact_id")
+}
+
+model email_templates {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String    @db.VarChar(255)
+  subject    String    @db.VarChar(255)
+  body       String
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model import_jobs {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String?   @db.Uuid
+  type           String    @db.VarChar(50)
+  status         String?   @default("pending") @db.VarChar(50)
+  total_rows     Int?      @default(0)
+  processed_rows Int?      @default(0)
+  failed_rows    Int?      @default(0)
+  error_log      Json?     @default("[]")
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+  users          users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_import_jobs_created_at")
+  @@index([user_id], map: "idx_import_jobs_user_id")
+}
+
+model lead_assignment_queue {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id    String    @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+  status     String?   @default("pending") @db.VarChar(50)
+  leads      leads     @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model leads {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contact_id            String?                 @db.Uuid
+  owner_id              String?                 @db.Uuid
+  status                String?                 @default("new") @db.VarChar(50)
+  source                String?                 @db.VarChar(100)
+  score                 Int?                    @default(0)
+  notes                 String?
+  created_at            DateTime?               @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime?               @default(now()) @db.Timestamptz(6)
+  upload_batch_id       String?                 @db.Uuid
+  source_type           String?                 @db.VarChar(50)
+  first_name            String?                 @db.VarChar(100)
+  last_name             String?                 @db.VarChar(100)
+  email                 String?                 @db.VarChar(255)
+  phone                 String?                 @db.VarChar(50)
+  company               String?                 @db.VarChar(255)
+  job_title             String?                 @db.VarChar(255)
+  is_converted          Boolean?                @default(false)
+  priority              String?                 @default("normal") @db.VarChar(20)
+  assignment_method     String?                 @default("manual") @db.VarChar(50)
+  deals                 deals[]
+  lead_assignment_queue lead_assignment_queue[]
+  contacts              contacts?               @relation(fields: [contact_id], references: [id], onUpdate: NoAction)
+  users                 users?                  @relation(fields: [owner_id], references: [id], onUpdate: NoAction)
+  tasks                 tasks[]
+}
+
+model leads_quarantine {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  raw_data        Json
+  issue_reason    String?
+  upload_batch_id String?   @db.Uuid
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([upload_batch_id], map: "idx_leads_quarantine_upload_batch_id")
+}
+
+model notes {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity_type String    @db.VarChar(50)
+  entity_id   String    @db.Uuid
+  creator_id  String?   @db.Uuid
+  content     String
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+  users       users?    @relation(fields: [creator_id], references: [id], onUpdate: NoAction)
+
+  @@index([entity_type, entity_id], map: "idx_notes_entity")
+}
+
+model notifications {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String?   @db.Uuid
+  title               String?   @db.VarChar(255)
+  type                String    @db.VarChar(50)
+  message             String
+  link                String?   @db.VarChar(500)
+  related_entity_type String?   @db.VarChar(50)
+  related_entity_id   String?   @db.Uuid
+  is_read             Boolean?  @default(false)
+  created_at          DateTime? @default(now()) @db.Timestamptz(6)
+  related_activity_id String?   @db.Uuid
+  users               users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_notifications_created_at")
+  @@index([user_id, is_read], map: "idx_notifications_user")
+}
+
+model pipeline_stages {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String    @unique @db.VarChar(100)
+  color       String?   @default("#000000") @db.VarChar(50)
+  order_index Int?      @default(0)
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model system_settings {
+  setting_key   String    @id @db.VarChar(255)
+  setting_value Json
+  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model tasks {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id     String?   @db.Uuid
+  deal_id     String?   @db.Uuid
+  creator_id  String?   @db.Uuid
+  title       String    @db.VarChar(255)
+  description String?
+  due_date    DateTime? @db.Timestamptz(6)
+  status      String?   @default("todo") @db.VarChar(50)
+  type        String?   @default("task") @db.VarChar(50)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+  contact_id  String?   @db.Uuid
+  contacts    contacts? @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users       users?    @relation(fields: [creator_id], references: [id], onUpdate: NoAction)
+  deals       deals?    @relation(fields: [deal_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  leads       leads?    @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model upload_batches {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  filename     String?   @db.VarChar(255)
+  source_type  String?   @db.VarChar(50)
+  total_rows   Int?
+  clean_rows   Int?
+  fixable_rows Int?
+  skipped_rows Int?
+  uploaded_by  String?   @db.Uuid
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  users        users?    @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_upload_batches_created_at")
+  @@index([uploaded_by], map: "idx_upload_batches_uploaded_by")
+}
+
+model upload_mappings {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_type String    @db.VarChar(50)
+  mapping     Json
+  created_by  String?   @db.Uuid
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+  users       users?    @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([source_type, created_by])
+  @@index([created_by], map: "idx_upload_mappings_created_by")
+}
+
+model user_quotas {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String?   @db.Uuid
+  monthly_target Decimal   @default(0.00) @db.Decimal(15, 2)
+  month          String    @db.Char(7)
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+  users          users?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, month])
+}
+
+model users {
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String?           @db.VarChar(255)
+  email                  String            @unique @db.VarChar(255)
+  password               String            @db.VarChar(255)
+  role                   user_role?        @default(representative)
+  created_at             DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime?         @default(now()) @db.Timestamptz(6)
+  reset_token            String?           @db.VarChar(255)
+  reset_token_expires_at DateTime?         @db.Timestamptz(6)
+  mfa_secret             String?           @db.VarChar(64)
+  mfa_enabled            Boolean?          @default(false)
+  mfa_backup_codes       String[]
+  weight                 Int?              @default(1)
+  status                 String?           @default("offline") @db.VarChar(50)
+  max_capacity           Int?              @default(50)
+  contacts               contacts[]
+  deals                  deals[]
+  import_jobs            import_jobs[]
+  leads                  leads[]
+  notes                  notes[]
+  notifications          notifications[]
+  tasks                  tasks[]
+  upload_batches         upload_batches[]
+  upload_mappings        upload_mappings[]
+  user_quotas            user_quotas[]
+}
+
+enum user_role {
+  admin
+  manager
+  representative
 }

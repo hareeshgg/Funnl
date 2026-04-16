@@ -1,15 +1,15 @@
-import { GeminiClient } from "../utils/gemini";
+import { BaseProvider } from "./providers/BaseProvider";
 import logger from "../logger/logger";
 
 /**
  * Hybrid Intelligence System utilizing Rules + LLM per Organization
  */
 export class HybridEngine {
-  private geminiClient: GeminiClient;
+  private provider: BaseProvider;
   private customPrompt: string | null;
 
-  constructor(geminiClient: GeminiClient, customPrompt?: string | null) {
-    this.geminiClient = geminiClient;
+  constructor(provider: BaseProvider, customPrompt?: string | null) {
+    this.provider = provider;
     this.customPrompt = customPrompt || null;
   }
 
@@ -19,17 +19,20 @@ export class HybridEngine {
    */
   async checkRules(message: string): Promise<string | null> {
     const text = message.toLowerCase();
-    
-    if (text.includes("price") || text.includes("how much")) {
-      return "I'd love to share our pricing packages with you! Are you looking for individual or team options?";
-    }
-    
-    if (text.includes("demo") || text.includes("book a call")) {
-      return "Absolutely! You can book a demo directly through our calendar link here: [CAL LINK]. What time works best?";
+
+    // 1. Pricing Rules
+    if (/\b(price|how much|pricing)\b/i.test(text)) {
+      return "I'd love to share our pricing packages with you!";
     }
 
-    if (text.includes("hi") || text.includes("hello") || text.includes("hey")) {
-      return "Hi there! 👋 How can I help you today?";
+    // 2. Demo Rules
+    if (/\b(demo|book a call|calendar)\b/i.test(text)) {
+      return "Absolutely!";
+    }
+
+    // 3. Generic Greetings (The primary fix for broad matching)
+    if (/\b(hi|hello|hey)\b/i.test(text)) {
+      return "Hi!";
     }
 
     return null;
@@ -38,17 +41,21 @@ export class HybridEngine {
   /**
    * Get the best response using hybrid approach (Rules -> LLM)
    */
-  async getResponse(history: any[], userInput: string, context: string = "social media interaction"): Promise<string> {
+  async getResponse(
+    history: any[],
+    userInput: string,
+    context: string = "social media interaction",
+  ): Promise<string> {
     // 1. Try deterministic rules
     const ruleResponse = await this.checkRules(userInput);
     if (ruleResponse) return ruleResponse;
 
-    // 2. Fallback to Gemini
-    return await this.geminiClient.generateReply(
-      context, 
-      userInput, 
-      history, 
-      this.customPrompt
+    // 2. Fallback to AI Provider
+    return await this.provider.generateReply(
+      context,
+      userInput,
+      history,
+      this.customPrompt,
     );
   }
 }

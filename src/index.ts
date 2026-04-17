@@ -4,6 +4,7 @@ import express from "express";
 import authRoutes from "./routes/auth.routes";
 import webhookRoutes from "./routes/webhook.routes";
 import funnlRoutes from "./routes/funnl.routes";
+import proactiveRoutes from "./routes/proactive.routes";
 import logger from "./logger/logger";
 import { prisma } from "./db/prisma";
 
@@ -18,6 +19,8 @@ logger.info("Mounting Multi-tenant API routes...");
 app.use("/auth", authRoutes); // Auth flow (OAuth)
 app.use("/webhooks", webhookRoutes); // Unified webhook receiver
 app.use("/funnl", funnlRoutes); // UI Config & Status
+app.use("/proactive", proactiveRoutes); // Proactive Engine
+
 
 /**
  * Status endpoint to verify system health

@@ -1,7 +1,7 @@
 import axios from "axios";
 import logger from "../logger/logger";
 
-const LINKEDIN_API_VERSION = "202405";
+const LINKEDIN_API_VERSION = "202604";
 const LINKEDIN_API_BASE = "https://api.linkedin.com";
 
 /**

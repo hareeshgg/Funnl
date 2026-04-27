@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
+import { LinkedInService } from "../services/linkedin.service";
+import { LinkedInUtils } from "../utils/linkedin";
 import logger from "../logger/logger";
 
 const router = Router();
@@ -106,4 +108,86 @@ router.get("/threads/callback", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Route to generate the LinkedIn OAuth URL.
+ */
+router.get("/linkedin", (req: Request, res: Response) => {
+  const { org_id } = req.query;
+
+  if (!org_id) {
+    return res.status(400).json({ error: "org_id is required" });
+  }
+
+  try {
+    const url = LinkedInUtils.getAuthorizationUrl(org_id as string);
+    res.json({ url });
+  } catch (err: any) {
+    logger.error(`Failed to generate LinkedIn auth URL: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * LinkedIn OAuth callback handler.
+ * After successful auth, renders an HTML page that signals success and auto-closes.
+ */
+router.get("/linkedin/callback", async (req: Request, res: Response) => {
+  const { code, state: orgId, error, error_description } = req.query;
+
+  if (error) {
+    logger.error(`LinkedIn OAuth callback error: ${error} - ${error_description}`);
+    return res.status(400).send(`
+      <html><body style="font-family:sans-serif;text-align:center;padding:60px;">
+        <h2>❌ LinkedIn Authorization Failed</h2>
+        <p>${error_description || error}</p>
+        <p>You can close this window and try again.</p>
+      </body></html>
+    `);
+  }
+
+  if (!code || !orgId) {
+    return res.status(400).json({ error: "code and state (org_id) are required" });
+  }
+
+  try {
+    await LinkedInService.handleCallback(code as string, orgId as string);
+    res.status(200).send(`
+      <html><body style="font-family:sans-serif;text-align:center;padding:60px;">
+        <h2>✅ LinkedIn Connected Successfully</h2>
+        <p>You can close this window and return to Sales Command Centre.</p>
+        <script>setTimeout(() => window.close(), 3000);</script>
+      </body></html>
+    `);
+  } catch (err: any) {
+    logger.error(`Failed during LinkedIn OAuth callback: ${err.message}`);
+    res.status(500).send(`
+      <html><body style="font-family:sans-serif;text-align:center;padding:60px;">
+        <h2>❌ Connection Failed</h2>
+        <p>${err.message}</p>
+        <p>You can close this window and try again.</p>
+      </body></html>
+    `);
+  }
+});
+
+/**
+ * Returns the LinkedIn connection status for an org.
+ */
+router.get("/linkedin/status", async (req: Request, res: Response) => {
+  const { org_id } = req.query;
+
+  if (!org_id) {
+    return res.status(400).json({ error: "org_id is required" });
+  }
+
+  try {
+    const status = await LinkedInService.getConnectionStatus(org_id as string);
+    res.json(status);
+  } catch (err: any) {
+    logger.error(`Failed to get LinkedIn status: ${err.message}`);
+    res.status(500).json({ error: "Failed to get LinkedIn status" });
+  }
+});
+
 export default router;
+

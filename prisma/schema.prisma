@@ -377,3 +377,40 @@ model proactive_engagement_logs {
 
   post proactive_posts @relation(fields: [post_id], references: [id], onDelete: Cascade)
 }
+
+model linkedin_connections {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_id         String    @unique @db.VarChar(255)
+  person_urn     String?   @db.VarChar(255)
+  access_token   String?
+  token_expiry   DateTime? @db.Timestamptz(6)
+  display_name   String?   @db.VarChar(255)
+  profile_image  String?
+  headline       String?
+  email          String?   @db.VarChar(255)
+  connected_at   DateTime? @default(now()) @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @updatedAt
+
+  posts          linkedin_posts[]
+}
+
+model linkedin_posts {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connection_id    String    @db.Uuid
+  linkedin_post_id String?   @db.VarChar(255)
+  content_type     String    @default("text") @db.VarChar(50)
+  text_content     String?
+  media_url        String?
+  link_url         String?
+  status           String    @default("draft") @db.VarChar(50)
+  error_message    String?
+  published_at     DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @updatedAt
+
+  connection       linkedin_connections @relation(fields: [connection_id], references: [id], onDelete: Cascade)
+
+  @@index([connection_id], map: "idx_linkedin_posts_connection_id")
+  @@index([created_at(sort: Desc)], map: "idx_linkedin_posts_created_at")
+}
